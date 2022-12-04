@@ -43,6 +43,11 @@ const RELEASE_MSG = `
 
 Завта в 19:00 я выберу для тебя одного из участников игры 😀
 `;
+const ERROR_MSG = `
+Упс! Что-то пошло не так 😅
+
+P.S. Сообщи об этом мне @Lihhana, возможно я смогу починить 😊
+`;
 
 module.exports = {
     WELCOME_MSG,
@@ -53,5 +58,6 @@ module.exports = {
     THANKS_FI_MSG,
     IS_EXISTS_MSG,
     HINT_YES_MSG,
-    RELEASE_MSG
+    RELEASE_MSG,
+    ERROR_MSG
 }

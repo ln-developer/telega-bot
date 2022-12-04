@@ -1,6 +1,8 @@
 const { JOIN_YES, JOIN_NO, HINT_YES, HINT_NO } = require("./variables");
 const { QUIZ_OPTIONS, QUIZ_HINT_OPTIONS } = require('./options');
 const TelegaBotApi = require('node-telegram-bot-api');
+const GamerModel = require('./models');
+const sequelize = require('./db');
 const {
     WELCOME_MSG,
     JOIN_QUIZ,
@@ -10,7 +12,8 @@ const {
     JOINED_MSG,
     INFO_MSG,
     REJECTED_MSG,
-    HINT_YES_MSG
+    HINT_YES_MSG,
+    ERROR_MSG
 } = require("./messages");
 const {
     BOT_TOKEN,
@@ -19,21 +22,14 @@ const {
     HELLO_STICKER,
     QUIZ_CALLBACK,
     GOOD_STICKER,
-    SAD_STICKER, GOOD_JOB_STICKER
+    SAD_STICKER,
+    GOOD_JOB_STICKER
 } = require("./core");
 
 //Timeout Time
 const TIMER_24_H = (24 * 60 * 1000);
 
 //GLOBAL SCOPE
-let gamersArr = [
-    // {
-    //     name: '#имя Егорка', id: 1262480811,
-    // },
-    {
-        name: '#имя Эмиль', id: 521994769,
-    }
-];
 let isStarted = false;
 const FI_TAG = '#имя';
 const HINT_TAG = '#подсказка';
@@ -43,97 +39,105 @@ const Bot = new TelegaBotApi(BOT_TOKEN, { polling: true });
 
 //Functions
 startTimer = async () => {
-    setTimeout(() => {
-        const newArr = [...shuffleUsers(gamersArr)];
+    setTimeout(async () => {
+        const allGamersArr = await GamerModel.findAll({ raw: true });
 
+        const newArr = [ ...shuffleUsers(allGamersArr) ];
         const arrLength = newArr.length;
 
         newArr.forEach((gamer, idx) => {
             if (idx === arrLength - 1) {
-                const msg = `
-                Привет! Выбрал для тебя участника ☺️
+                const msg = `Привет! Выбрал для тебя участника ☺️\n${ newArr[0].name }`;
 
-                ${ newArr[0].name }
-                `;
-
-                Bot.sendMessage(gamer.id, msg);
+                Bot.sendMessage(gamer.chatId, msg);
 
                 if (newArr[0].hobby) {
-                    const hintMsg = `
-                    P.S. небольшая подсказка для тебя 😉
-                    ${ newArr[0].hobby }
-                    `;
+                    const hintMsg = `P.S. небольшая подсказка для тебя 😉\n${ newArr[0].hobby }`;
 
-                    Bot.sendMessage(gamer.id, hintMsg);
+                    Bot.sendMessage(gamer.chatId, hintMsg);
                 }
             } else {
-                const msg = `
-                Привет! Выбрал для тебя участника ☺️
+                const msg = `Привет! Выбрал для тебя участника ☺️\n${ newArr[idx + 1].name }`;
 
-                ${ newArr[idx + 1].name }
-                `;
-
-                Bot.sendMessage(gamer.id, msg);
+                Bot.sendMessage(gamer.chatId, msg);
 
                 if (newArr[idx + 1].hobby) {
-                    const hintMsg = `
-                    P.S. небольшая подсказка для тебя 😉
-                    ${ newArr[idx + 1].hobby }
-                    `;
+                    const hintMsg = `P.S. небольшая подсказка для тебя 😉\n${ newArr[idx + 1].hobby }`;
 
-                    Bot.sendMessage(gamer.id, hintMsg);
+                    Bot.sendMessage(gamer.chatId, hintMsg);
                 }
             }
         })
-    }, 60000)
+    }, 90000)
 }
 
-startBot = () => {
+startBot = async () => {
+    try {
+        await sequelize.authenticate();
+        await sequelize.sync();
+    } catch (error) {
+        console.error(error);
+        console.log('ERROR: ', 'База отвалилась, печально');
+    }
+
     Bot.on(MSG_EVENT, async (msg) => {
         const text = msg.text;
         const chatId = msg.chat.id;
 
-        // Как только юзер присоединился к чату
-        if (text === START_COMMAND) {
-            await Bot.sendMessage(chatId, WELCOME_MSG);
-            await Bot.sendSticker(chatId, HELLO_STICKER);
-            return Bot.sendMessage(chatId, JOIN_QUIZ, QUIZ_OPTIONS);
-        }
-
-        // если юзер заполнил имя
-        if (text?.includes(FI_TAG)) {
-            if (!isExists(chatId)) {
-                const gamer = {
-                    name: msg.text,
-                    id: chatId
-                }
-                gamersArr.push(gamer);
-                chatLogger(msg);
-                console.log(gamersArr)
-                // gamersArrLogger(gamersArr);
-
-                // запуск таймера, только когда присоединится первый игрок
-                if (!isStarted) {
-                    await startTimer();
-                    isStarted = true;
-                }
-
-                return Bot.sendMessage(chatId, THANKS_FI_MSG, QUIZ_HINT_OPTIONS);
-            } else {
-                return Bot.sendMessage(chatId, IS_EXISTS_MSG);
+        try {
+            // Как только юзер присоединился к чату
+            if (text === START_COMMAND) {
+                await Bot.sendMessage(chatId, WELCOME_MSG);
+                await Bot.sendSticker(chatId, HELLO_STICKER);
+                return Bot.sendMessage(chatId, JOIN_QUIZ, QUIZ_OPTIONS);
             }
-        }
 
-        // если юзер заполнил подсказку
-        if (text?.includes(HINT_TAG)) {
-            const userIdx = getUserIdx(chatId);
-            gamersArr[userIdx].hobby = msg.text;
-            console.log(gamersArr)
-            await Bot.sendSticker(chatId, GOOD_JOB_STICKER);
-            return Bot.sendMessage(chatId, RELEASE_MSG);
-        }
+            // если юзер заполнил имя
+            else if (text?.includes(FI_TAG)) {
+                isExistsFn(chatId).then(async (result) => {
+                    if (!result) {
+                        const gamer = {
+                            name: msg.text,
+                            chatId
+                        }
+                        // кидаем игрока в БД
+                        await GamerModel.create(gamer);
 
-        return Bot.sendMessage(chatId, 'Я тебя не понимаю, попробуй еще раз 😅');
+                        // логируем все
+                        chatLogger(msg);
+
+                        // запуск таймера, только когда присоединится первый игрок
+                        if (!isStarted) {
+                            await startTimer();
+                            isStarted = true;
+                        }
+
+                        return Bot.sendMessage(chatId, THANKS_FI_MSG, QUIZ_HINT_OPTIONS);
+                    } else {
+                        return Bot.sendMessage(chatId, IS_EXISTS_MSG);
+                    }
+                })
+            }
+
+            // если юзер заполнил подсказку
+            else if (text?.includes(HINT_TAG)) {
+                // достаем игрока из БД
+                const gamer = await GamerModel.findOne({ chatId });
+                gamer.hobby = msg.text;
+                await gamer.save();
+
+                await Bot.sendSticker(chatId, GOOD_JOB_STICKER);
+                return Bot.sendMessage(chatId, RELEASE_MSG);
+            }
+
+            // если пользовал ввел какую-то дичь
+            else {
+                return Bot.sendMessage(chatId, 'Я тебя не понимаю, попробуй еще раз 😅');
+            }
+        } catch (error) {
+            console.log(error);
+            return Bot.sendMessage(chatId, ERROR_MSG)
+        }
     })
 
     Bot.on(QUIZ_CALLBACK, async (answer) => {
@@ -190,20 +194,11 @@ shuffleUsers = (usersArr) => {
     return usersArr;
 }
 
-getUserIdx = (chatId) => {
-    let index;
-    gamersArr.forEach((gamer, idx) => {
-        if (gamer.id === chatId) {
-            index = idx;
-        }
-    })
-    return index;
-}
-
-isExists = (id) => {
+isExistsFn = async (id) => {
     let isExists = false;
-    gamersArr.forEach(gamer => {
-        if (gamer.id === id) {
+    const allGamersArr = await GamerModel.findAll({ raw: true });
+    allGamersArr.forEach(gamer => {
+        if (gamer.chatId === id) {
             isExists = true;
         }
     })
@@ -212,4 +207,6 @@ isExists = (id) => {
 }
 
 //START BOT
-startBot();
+startBot().then(r => {
+    console.log("The game's starting!");
+});
