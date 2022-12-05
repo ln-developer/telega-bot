@@ -68,7 +68,7 @@ startTimer = async () => {
                 }
             }
         })
-    }, 90000)
+    }, 120000)
 }
 
 startBot = async () => {
