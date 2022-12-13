@@ -49,28 +49,28 @@ app.post('/web-data', async (request, response) => {
 
     console.log('Hello', queryId, gamer, wishes)
 
-    try {
-        await Bot.answerWebAppQuery(queryId, {
-           type: 'article',
-            id: queryId,
-            title: 'Успешная регистрация участника',
-            input_message_content: {
-               message_text: 'Поздравляю! Ты успешно добавлен в базу данных участников'
-            }
-        });
-        await addNewUser(queryId, gamer, wishes);
-        return response.status(200).json({});
-    } catch (err) {
-        await Bot.answerWebAppQuery(queryId, {
-            type: 'article',
-            id: queryId,
-            title: 'Ошибка регистрации участника',
-            input_message_content: {
-                message_text: 'Что-то пошло не так! К сожалению, ты не был добавлен в базу данных участников'
-            }
-        });
-        return response.status(500).json({});
-    }
+    // try {
+    //     await Bot.answerWebAppQuery(queryId, {
+    //        type: 'article',
+    //         id: queryId,
+    //         title: 'Успешная регистрация участника',
+    //         input_message_content: {
+    //            message_text: 'Поздравляю! Ты успешно добавлен в базу данных участников'
+    //         }
+    //     });
+    //     await addNewUser(queryId, gamer, wishes);
+    //     return response.status(200).json({});
+    // } catch (err) {
+    //     await Bot.answerWebAppQuery(queryId, {
+    //         type: 'article',
+    //         id: queryId,
+    //         title: 'Ошибка регистрации участника',
+    //         input_message_content: {
+    //             message_text: 'Что-то пошло не так! К сожалению, ты не был добавлен в базу данных участников'
+    //         }
+    //     });
+    //     return response.status(500).json({});
+    // }
 })
 
 //Functions
