@@ -1,4 +1,5 @@
-const { JOIN_NO, JOIN_YES, HINT_NO, HINT_YES } = require("./variables");
+const { JOIN_NO, JOIN_YES, HINT_NO, HINT_YES } = require("../variables");
+const {WEB_APP_URL} = require("./common");
 
 module.exports = {
     QUIZ_OPTIONS: {
@@ -11,7 +12,7 @@ module.exports = {
                     },
                     {
                         text: 'Да',
-                        callback_data: JOIN_YES
+                        web_app: { url: WEB_APP_URL }
                     },
                 ],
             ]

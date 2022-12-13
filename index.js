@@ -1,41 +1,75 @@
-const { JOIN_YES, JOIN_NO, HINT_YES, HINT_NO } = require("./variables");
-const { QUIZ_OPTIONS, QUIZ_HINT_OPTIONS } = require('./options');
 const TelegaBotApi = require('node-telegram-bot-api');
-const GamerModel = require('./models');
+const { QUIZ_OPTIONS } = require('./core/options');
+const GamerModel = require('./core/models');
+const { JOIN_NO } = require("./variables");
+const express = require('express');
 const sequelize = require('./db');
+const cors = require('cors');
 const {
     WELCOME_MSG,
     JOIN_QUIZ,
     THANKS_FI_MSG,
     IS_EXISTS_MSG,
     RELEASE_MSG,
-    JOINED_MSG,
-    INFO_MSG,
     REJECTED_MSG,
-    HINT_YES_MSG,
     ERROR_MSG
-} = require("./messages");
+} = require("./core/messages");
 const {
     BOT_TOKEN,
     MSG_EVENT,
     START_COMMAND,
     HELLO_STICKER,
     QUIZ_CALLBACK,
-    GOOD_STICKER,
     SAD_STICKER,
     GOOD_JOB_STICKER
-} = require("./core");
+} = require("./core/common");
 
 //Timeout Time
 const TIMER_24_H = (24 * 60 * 1000);
 
 //GLOBAL SCOPE
 let isStarted = false;
-const FI_TAG = '#имя';
-const HINT_TAG = '#подсказка';
 
 //Create Bot
 const Bot = new TelegaBotApi(BOT_TOKEN, { polling: true });
+
+//init server
+const app = express();
+
+app.use(express.json());
+app.use(cors());
+
+const PORT = 8000;
+app.listen(PORT, () => {
+    console.log('Server started on PORT: ', PORT);
+})
+
+app.post('/web-data', async (request, response) => {
+    const { queryId, gamer, wishes } = request.body;
+
+    try {
+        await Bot.answerWebAppQuery(queryId, {
+           type: 'article',
+            id: queryId,
+            title: 'Успешная регистрация участника',
+            input_message_content: {
+               message_text: 'Поздравляю! Ты успешно добавлен в базу данных участников'
+            }
+        });
+        await addNewUser(queryId, gamer, wishes);
+        return response.status(200).json({});
+    } catch (err) {
+        await Bot.answerWebAppQuery(queryId, {
+            type: 'article',
+            id: queryId,
+            title: 'Ошибка регистрации участника',
+            input_message_content: {
+                message_text: 'Что-то пошло не так! К сожалению, ты не был добавлен в базу данных участников'
+            }
+        });
+        return response.status(500).json({});
+    }
+})
 
 //Functions
 startTimer = async () => {
@@ -92,44 +126,6 @@ startBot = async () => {
                 return Bot.sendMessage(chatId, JOIN_QUIZ, QUIZ_OPTIONS);
             }
 
-            // если юзер заполнил имя
-            else if (text?.includes(FI_TAG)) {
-                isExistsFn(chatId).then(async (result) => {
-                    if (!result) {
-                        const gamer = {
-                            name: msg.text,
-                            chatId
-                        }
-                        // кидаем игрока в БД
-                        await GamerModel.create(gamer);
-
-                        // логируем все
-                        chatLogger(msg);
-
-                        // запуск таймера, только когда присоединится первый игрок
-                        if (!isStarted) {
-                            await startTimer();
-                            isStarted = true;
-                        }
-
-                        return Bot.sendMessage(chatId, THANKS_FI_MSG, QUIZ_HINT_OPTIONS);
-                    } else {
-                        return Bot.sendMessage(chatId, IS_EXISTS_MSG);
-                    }
-                })
-            }
-
-            // если юзер заполнил подсказку
-            else if (text?.includes(HINT_TAG)) {
-                // достаем игрока из БД
-                const gamer = await GamerModel.findOne({ chatId });
-                gamer.hobby = msg.text;
-                await gamer.save();
-
-                await Bot.sendSticker(chatId, GOOD_JOB_STICKER);
-                return Bot.sendMessage(chatId, RELEASE_MSG);
-            }
-
             // если пользовал ввел какую-то дичь
             else {
                 return Bot.sendMessage(chatId, 'Я тебя не понимаю, попробуй еще раз 😅');
@@ -144,40 +140,13 @@ startBot = async () => {
         const userAnswer = answer.data;
         const chatId = answer.message.chat.id;
 
-        // ответ ДА на присоединение
-        if (userAnswer === JOIN_YES) {
-            await Bot.sendSticker(chatId, GOOD_STICKER);
-            await Bot.sendMessage(chatId, JOINED_MSG);
-            return Bot.sendMessage(chatId, INFO_MSG);
-        }
-
         // ответ НЕТ на присоединение
-        else if (userAnswer === JOIN_NO) {
+        if (userAnswer === JOIN_NO) {
             await Bot.sendSticker(chatId, SAD_STICKER);
             return Bot.sendMessage(chatId, REJECTED_MSG);
         }
 
-        // ответ ДА на подсказку
-        else if (userAnswer === HINT_YES) {
-            return Bot.sendMessage(chatId, HINT_YES_MSG);
-        }
-
-        // ответ НЕТ на подсказку
-        else if (userAnswer === HINT_NO) {
-            await Bot.sendSticker(chatId, GOOD_JOB_STICKER);
-            return Bot.sendMessage(chatId, RELEASE_MSG);
-        }
-
     })
-}
-
-chatLogger = (msg) => {
-    console.log('-------------- New Gamer --------------');
-    console.log('======================================');
-    console.log('CHAT ID: ', msg.chat.id);
-    console.log('USER NAME: ', msg.chat.first_name);
-    console.log('TEXT: ', msg.text);
-    console.log('======================================');
 }
 
 shuffleUsers = (usersArr) => {
@@ -204,6 +173,32 @@ isExistsFn = async (id) => {
     })
 
     return isExists;
+}
+
+addNewUser = async (chatId, name, hobby) => {
+    isExistsFn(chatId).then(async (result) => {
+        if (!result) {
+            const gamer = {
+                name,
+                hobby,
+                chatId
+            }
+            // кидаем игрока в БД
+            await GamerModel.create(gamer);
+
+            // запуск таймера, только когда присоединится первый игрок
+            if (!isStarted) {
+                await startTimer();
+                isStarted = true;
+            }
+
+            await Bot.sendMessage(chatId, THANKS_FI_MSG);
+            await Bot.sendSticker(chatId, GOOD_JOB_STICKER);
+            return Bot.sendMessage(chatId, RELEASE_MSG);
+        } else {
+            return Bot.sendMessage(chatId, IS_EXISTS_MSG);
+        }
+    })
 }
 
 //START BOT
