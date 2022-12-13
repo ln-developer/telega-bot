@@ -47,6 +47,8 @@ app.listen(PORT, () => {
 app.post('/web-data', async (request, response) => {
     const { queryId, gamer, wishes } = request.body;
 
+    console.log('Hello', queryId, gamer, wishes)
+
     try {
         await Bot.answerWebAppQuery(queryId, {
            type: 'article',
