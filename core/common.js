@@ -1,6 +1,6 @@
 //Auth Token
 const BOT_TOKEN = '5989521365:AAEbuVkvGGI3eu_RTBStsuXgXTr9M5HKxV4';
-const WEB_APP_URL = 'http://thriving-torte-d6a864.netlify.app/';
+const WEB_APP_URL = 'https://thriving-torte-d6a864.netlify.app/';
 
 //Commands
 const START_COMMAND = '/start';
