@@ -4,7 +4,10 @@ const GamerModel = require('./core/models');
 const { JOIN_NO } = require("./variables");
 const express = require('express');
 const sequelize = require('./db');
+const https = require('https');
+const path = require('path');
 const cors = require('cors');
+const fs = require('fs');
 const {
     WELCOME_MSG,
     JOIN_QUIZ,
@@ -39,8 +42,13 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
+const httpsServer = https.createServer({
+    key: fs.readFileSync(path.join(__dirname, 'certs', 'key.pem')),
+    cert: fs.readFileSync(path.join(__dirname, 'certs', 'cert.pem')),
+}, app);
+
 const PORT = 8000;
-app.listen(PORT, () => {
+httpsServer.listen(PORT, () => {
     console.log('Server started on PORT: ', PORT);
 })
 
