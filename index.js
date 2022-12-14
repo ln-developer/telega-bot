@@ -41,7 +41,7 @@ const app = express();
 
 app.use(express.json());
 app.use(cors({
-    origin: 'https://thriving-torte-d6a864.netlify.app/'
+    origin: '*'
 }));
 
 app.all('*', function(req, res, next) {
