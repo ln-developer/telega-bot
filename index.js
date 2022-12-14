@@ -57,7 +57,7 @@ const httpsServer = https.createServer({
 }, app);
 
 const PORT = 8000;
-app.listen(PORT, () => {
+httpsServer.listen(PORT, () => {
     console.log('Server started on PORT: ', PORT);
 })
 
